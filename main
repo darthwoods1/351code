@@ -1,0 +1,107 @@
+#include "mbed.h"
+#include <chrono>
+
+class Counter {
+public:
+    Counter(PinName pin) : interrupt(pin)                          //Paramatized constructor calling flow from D0 in
+    {                                                         //member initialization for interrupt
+        interrupt.rise(callback(this, &Counter::debounce));  //calling debounce from interrupt for digitial value on rising edge
+        debounceTimer.start();
+        timeSinceLastFlow.attach(&updateTime(), 1.0);
+    }
+
+    void debounce()
+    {
+        if(!debounceTimer.read_ms()) //if debounce time is zero start a new timer and return
+        {
+            debounceTimer.reset();
+            debounceTimer.start();
+            return;
+        }
+
+        if(debounceTimer.read_ms() >= debounceTime) //if signal has been on for debounced time
+        {
+            increment();
+            PulseInterrupt();
+        }
+    }
+
+    void increment()       //member function increment, increases value of volatile int count
+    {
+        count++; 
+    }
+
+    int read()            //reads value from count 
+    {
+        return count; 
+    }
+
+    void PulseInterrupt()
+    {
+        InterruptFlag = true;
+    }
+
+    void updateTime()
+    {
+
+        if(InterruptFlag)
+        {
+            timeSinceFlow = 0;
+            InterruptFlag = 0;
+        }   else {
+            timeSinceFlow += 1;
+        }
+    }
+
+    int readtime()
+    {
+        return timeSinceFlow;
+    }
+
+private:
+    InterruptIn interrupt; //triggering event when digital input changes
+    Timer debounceTimer;
+    Timer timeSinceLastFlow;
+    static const int debounceTime = 10; //milli seconds
+    static const int finalTime = 1000; //milli seconds
+    volatile int count;    //
+    volatile int timeSinceFlow = 0; 
+    volatile bool InterruptFlag = false;
+};
+
+
+
+
+int main(){
+
+    Counter counter(D0);
+    int timeSince = 0;
+    int timeFinish = 10;
+    int count; 
+    volatile float Volume = 0;
+    volatile float calibrationFactor = 1;
+
+    while(1)
+    {
+
+        timeSince = counter.readtime();
+        while(timeSince<timeFinish)
+        {
+            count = counter.read();  
+            Volume = count * calibrationFactor; //calculate total volume of water
+            printf("Flow counter value: %d\n\r and total volume %f", count, Volume);
+            timeSince = counter.readtime();
+        }
+
+        
+        //exit timer loop when flow finished
+
+
+
+
+
+
+
+
+    }
+}
