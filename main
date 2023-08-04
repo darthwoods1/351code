@@ -1,39 +1,34 @@
+/*
+ * Copyright (c) 2017-2020 Arm Limited and affiliates.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 #include "mbed.h"
 #include <chrono>
+#include <ctime>
+#include <iostream>
+#include<string>
+
+using namespace std;
+
+
 
 class Counter {
 public:
-    Counter(PinName pin) : interrupt(pin)                          //Paramatized constructor calling flow from D0 in
-    {                                                         //member initialization for interrupt
-        interrupt.rise(callback(this, &Counter::debounce));  //calling debounce from interrupt for digitial value on rising edge
-        debounceTimer.start();
-        timeSinceLastFlow.attach(&updateTime(), 1.0);
+    Counter(PinName pin) : _interrupt(pin)          // create the InterruptIn on the pin specified to Counter
+    {
+        timeSinceLastFlow.start();
+        _interrupt.rise(callback(this, &Counter::increment)); // attach increment function of this counter instance
     }
 
-    void debounce()
+    void increment()
     {
-        if(!debounceTimer.read_ms()) //if debounce time is zero start a new timer and return
-        {
-            debounceTimer.reset();
-            debounceTimer.start();
-            return;
-        }
 
-        if(debounceTimer.read_ms() >= debounceTime) //if signal has been on for debounced time
-        {
-            increment();
-            PulseInterrupt();
-        }
-    }
+        _count++;
+        _volume = calibrationFactor * _count;
+        PulseInterrupt();
+        timeSinceLastFlow.reset();
 
-    void increment()       //member function increment, increases value of volatile int count
-    {
-        count++; 
-    }
-
-    int read()            //reads value from count 
-    {
-        return count; 
     }
 
     void PulseInterrupt()
@@ -41,6 +36,17 @@ public:
         InterruptFlag = true;
     }
 
+
+    int readCount()
+    {
+        return _count;
+    }
+
+    float readVol()
+    {
+        return _volume;
+    }
+                        //Timers
     void updateTime()
     {
 
@@ -53,55 +59,37 @@ public:
         }
     }
 
+
     int readtime()
     {
-        return timeSinceFlow;
+        return timeSinceLastFlow.read_us();
     }
 
+
 private:
-    InterruptIn interrupt; //triggering event when digital input changes
+    InterruptIn _interrupt;
     Timer debounceTimer;
     Timer timeSinceLastFlow;
     static const int debounceTime = 10; //milli seconds
     static const int finalTime = 1000; //milli seconds
-    volatile int count;    //
     volatile int timeSinceFlow = 0; 
     volatile bool InterruptFlag = false;
+    volatile int _count;
+    volatile float _volume;
+    const float calibrationFactor = 3.424;
 };
 
+Counter counter(D0);
 
+int main()
+{
+    while (1) {
 
-
-int main(){
-
-    Counter counter(D0);
-    int timeSince = 0;
-    int timeFinish = 10;
-    int count; 
-    volatile float Volume = 0;
-    volatile float calibrationFactor = 1;
-
-    while(1)
-    {
-
-        timeSince = counter.readtime();
-        while(timeSince<timeFinish)
-        {
-            count = counter.read();  
-            Volume = count * calibrationFactor; //calculate total volume of water
-            printf("Flow counter value: %d\n\r and total volume %f", count, Volume);
-            timeSince = counter.readtime();
-        }
-
+        cout << "Count: " << counter.readCount() << "\n" << "Volume: " << counter.readVol() << "\n";
+        cout << "Time since flow: " << counter.readtime() << endl; 
         
-        //exit timer loop when flow finished
-
-
-
-
-
-
-
-
+        
+        
+        ThisThread::sleep_for(2000);
     }
 }
